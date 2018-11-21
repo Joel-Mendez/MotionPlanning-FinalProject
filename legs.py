@@ -1,10 +1,21 @@
-#testing 
+#To-Do
+#Parameters for Legs
+#Control Rotation through ThighAngle
+#MinJerk
+#FootPlacement - Inverse Kinematics?
+#Obstacle Generation - ranges for height and width?
+#Second Leg - Problems with Overlapping?
+
 
 import sys, random
 import pygame
 from pygame.locals import *
 import pymunk
 import pymunk.pygame_util
+from math import pi
+
+def deg(degree):#quick function to help me with degrees to radians
+    return degree*pi/180
 
 def add_ball(space):
     """Add a ball to the given space at a random position"""
@@ -18,40 +29,25 @@ def add_ball(space):
     space.add(body, shape)
     return shape
 
-def add_L(space):
-    """Add a inverted L shape with two joints"""
-    rotation_center_body = pymunk.Body(body_type = pymunk.Body.STATIC)
-    rotation_center_body.position = (300,300)
-
-    rotation_limit_body = pymunk.Body(body_type = pymunk.Body.STATIC)
-    rotation_limit_body.position = (200,300)
-
-    body = pymunk.Body(100, 10000)
-    body.position = (300,300)
-    l1 = pymunk.Segment(body, (-150, 0), (255.0, 0.0), 5.0)
-    l2 = pymunk.Segment(body, (-150.0, 0), (-150.0, 50.0), 5.0)
-
-    rotation_center_joint = pymunk.PinJoint(body, rotation_center_body, (0,0), (0,0))
-    joint_limit = 25
-    rotation_limit_joint = pymunk.SlideJoint(body, rotation_limit_body, (-100,0), (0,0), 0, joint_limit)
-
-    space.add(l1, l2, body, rotation_center_joint, rotation_limit_joint)
-    return l1,l2
 def add_limbs(space):
-
-
     #Creating Limbs#####################################################
-    ###pymunk.Body(Mass,Moment)
     thigh = pymunk.Body(10,10000)
     thigh.position=(300,550)
+    thigh.KINEMATIC
+
     shank=pymunk.Body(10,10000)
     shank.position=(300,350)
-    foot=pymunk.Body(300,150)
+    shank.KINEMATIC
+
+    foot=pymunk.Body(10,10000)
+    foot.position=(300,150)
+    foot.KINEMATIC
+
     ###pymunk.Segment(Instance of Body, Start, End, Thickness)
     thighSegment=pymunk.Segment(thigh, (0, 0), (0, -200), 5.0)
     shankSegment=pymunk.Segment(shank, (0, 0), (0, -200), 5.0)
-    #footSegment=pymunk.Segment(foot, (0,0), (50,0), 5.0)
-    footSegment=pymunk.Segment(shank,(0,-200),(50,-200),5.0)
+    footSegment=pymunk.Segment(foot, (0,0), (50,0), 5.0)
+    #footSegment=pymunk.Segment(shank,(0,-200),(50,-200),5.0)
 
     space.add(thigh,shank,foot,thighSegment,shankSegment,footSegment)
 
@@ -65,17 +61,26 @@ def add_limbs(space):
 
     thighRotation = pymunk.PivotJoint(thigh, thighJoint, (0,0), (0,0))#Rotation of Thigh about thigh joint
     shankRotation = pymunk.PivotJoint(shank,thigh,(0,0),(0,-200)) #Rotation of shank about knee (end of thigh segment)
-    shankRotation.collide_bodies=False
-    #footRotation = pymunk.PinJoint(foot,shank,(0,0),(0,-200))
-    space.add(thighRotation,shankRotation)
+    shankRotation.collide_bodies=False #To prevent Parkinson's
+    footRotation = pymunk.PivotJoint(foot,shank,(0,0),(0,-200)) #Rotation of foot about ankle (end of shank segment)
+    footRotation.collide_bodies=False
 
-    #constraints on translational motion
-    thighHipConstraint=pymunk.SlideJoint(thigh,thighJoint,(0,0),(0,0),0,0) #So our thigh doesn't pop out of its socket
-    thighKneeConstraint=pymunk.SlideJoint(thigh,kneeJoint,(0,-200),(0,0),0,200) #Constraining how far our thigh can rotate
-    shankKneeConstraint=pymunk.SlideJoint(shank,thigh,(0,0),(0,-200),0,0) #So that our thigh and shank remain connected at the knee
+    space.add(thighRotation)
+    space.add(shankRotation)
+    space.add(footRotation)
+
+    #Constraints##########################################################
+    thighHipConstraint=pymunk.RotaryLimitJoint(thigh,thighJoint,deg(-20),deg(90))
+    shankKneeConstraint=pymunk.RotaryLimitJoint(thigh,shank,deg(-60),deg(0))
     shankKneeConstraint.collide_bodies=False
-    shankAnkleConstraint=pymunk.SlideJoint(shank,ankleJoint,(0,-200),(0,0),0,200)
-    space.add(thighHipConstraint,thighKneeConstraint,shankKneeConstraint,shankAnkleConstraint)
+    footAnkleConstraint=pymunk.RotaryLimitJoint(shank,foot,deg(-20),deg(20))
+    footAnkleConstraint.collide_bodies=False
+
+
+    space.add(thighHipConstraint)
+    space.add(shankKneeConstraint)
+    space.add(footAnkleConstraint)
+
 
 
     return thigh,shank,foot
@@ -89,7 +94,6 @@ def main():
     space = pymunk.Space()
     space.gravity = (0.0, -900.0)
 
-    #lines = add_L(space)
     lines=add_limbs(space)
 
     balls = []
