@@ -1,0 +1,5 @@
+State = [joint angles/velocities/acc.]
+Goal: FinalPosition - Heel Strike at the other side of the obstacle
+Cost: Sign Distance on Obstacles/ Smoothness/
+Motion Planning Algorithm: Obstacle Check
+Actions: F(Initial Position,Final Position) -> Trajectories, Max Height Constraints
