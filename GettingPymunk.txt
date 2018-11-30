@@ -1,7 +1,0 @@
-You'll need pymunk and pygame for the code. Run the following two lines in whatever Python terminal you use. 
-
-python -m pip install -U pymunk
-
-python -m pip install -U pygame
-
- 
