@@ -1,0 +1,162 @@
+function sysCall_init() 
+    --Getting Handles
+    modelHandle=sim.getObjectAssociatedWithScript(sim.handle_self)
+    legJointHandles={sim.getObjectHandle('Bill_leftLegJoint'),sim.getObjectHandle('Bill_rightLegJoint')}
+    kneeJointHandles={sim.getObjectHandle('Bill_leftKneeJoint'),sim.getObjectHandle('Bill_rightKneeJoint')}
+    ankleJointHandles={sim.getObjectHandle('Bill_leftAnkleJoint'),sim.getObjectHandle('Bill_rightAnkleJoint')}
+    --Add to model
+    RightSensor=sim.getObjectHandle('RightFootSensor')
+    LeftSensor=sim.getObjectHandle('LeftFootSensor')
+
+    --Defining Leg Parameters
+    ----Thigh Length
+    thighLength=.9078-.5147 -- Read from Screen:(zposition of leg joint) - (zposition of knee joint) CHANGE IF WE'RE NOT USING BILL!!!
+    shankLength=.5147-.1038 -- Read from Screen:(zposition of knee joint) - (zposition of ankle joint) CHANGE IF WE'RE NOT USING BILL!!!
+    footLength=.8906 --Read from Group 16 geometry - Size-X CHANGE IF WE'RE NOT USING BILL!!!
+    footHeight=.0198 --zCoordinate from AnkleJoint position CHANGE IF WE'RE NOT USING BILL!!!
+    
+    legLength=thighLength+shankLength+footHeight
+    maxStrideLength=1.41*legLength --Just using an arbitrary value right now. 
+
+    ----Shank Length
+    a,zmax=sim.getObjectFloatParameter(sim.getObjectHandle('Group1'),20)
+    a,zmin=sim.getObjectFloatParameter(sim.getObjectHandle('Group1'),17)
+    shankLength=zmax-zmin
+
+    ----Foot Length
+    a,zmax=sim.getObjectFloatParameter(sim.getObjectHandle('Group1'),20)
+    a,zmin=sim.getObjectFloatParameter(sim.getObjectHandle('Group1'),17)
+    footLength=zmax-zmin
+
+    legWaypoints={0.237,0.228,0.175,-0.014,-0.133,-0.248,-0.323,-0.450,-0.450,-0.442,-0.407,-0.410,-0.377,-0.303,-0.178,-0.111,-0.010,0.046,0.104,0.145,0.188}
+    kneeWaypoints={0.282,0.403,0.577,0.929,1.026,1.047,0.939,0.664,0.440,0.243,0.230,0.320,0.366,0.332,0.269,0.222,0.133,0.089,0.065,0.073,0.092}
+    ankleWaypoints={-0.133,0.041,0.244,0.382,0.304,0.232,0.266,0.061,-0.090,-0.145,-0.043,0.041,0.001,0.011,-0.099,-0.127,-0.121,-0.120,-0.107,-0.100,-0.090,-0.009}
+    relativeVel={2,2,1.2,2.3,1.4,1,1,1,1,1.6,1.9,2.4,2.0,1.9,1.5,1,1,1,1,1,2.3,1.5}
+    
+    nominalVelocity=sim.getScriptSimulationParameter(sim.handle_self,'walkingSpeed')
+    
+    
+    speedModulator=1
+    nominalVelocity=nominalVelocity*speedModulator
+        
+    vel=nominalVelocity*0.8/0.56
+    scaling=0
+    tl=#legWaypoints
+    dl=1/tl
+    vp=0
+    floorNotDetected=0
+    obstacleDetected=0
+    movement=0
+    floorMovement=0
+    obstacleMovement=0
+    
+    allFloorSensorsTriggerCount=0
+    allFloorSensorsTriggerCountRequired=5
+    obstacleSensorsNoTriggerCount=0
+    obstacleSensorsNoTriggerCountRequired=2
+end
+------------------------------------------------------------------------------ 
+-- Following few lines automatically added by V-REP to guarantee compatibility 
+-- with V-REP 3.1.3 and earlier: 
+colorCorrectionFunction=function(_aShapeHandle_) 
+  local version=sim.getInt32Parameter(sim.intparam_program_version) 
+  local revision=sim.getInt32Parameter(sim.intparam_program_revision) 
+  if (version<30104)and(revision<3) then 
+      return _aShapeHandle_ 
+  end 
+  return '@backCompatibility1:'.._aShapeHandle_ 
+end 
+------------------------------------------------------------------------------ 
+ 
+function sysCall_cleanup() 
+    -- Restore to initial colors:
+    if (randomColors) then
+        previousSelection=sim.getObjectSelection()
+        sim.removeObjectFromSelection(sim.handle_all,-1)
+        sim.addObjectToSelection(sim.handle_tree,modelHandle)
+        modelObjects=sim.getObjectSelection()
+        sim.removeObjectFromSelection(sim.handle_all,-1)
+        sim.addObjectToSelection(previousSelection)
+        setColor(modelObjects,'HAIR',HairColors[2])
+        setColor(modelObjects,'SKIN',skinColors[2])
+        setColor(modelObjects,'SHIRT',shirtColors[2])
+        setColor(modelObjects,'TROUSERS',trouserColors[2])
+        setColor(modelObjects,'SHOE',shoeColors[2])
+    end
+end 
+
+
+function sysCall_actuation() 
+    dt=sim.getSimulationTimeStep()
+    simTime=sim.getSimulationTime()
+    
+    forward=true
+    
+    s=sim.getObjectSizeFactor(modelHandle)
+--Inserted Code - JM------------------------------------------------------------------------------------------
+--------------------
+
+--Pseudo Code from Presentation
+--if NOT obstacle_detected:
+--walk()
+--else:
+--Scenario = classify_scenario(obs_height, obs_length) #motion primitives
+--if  Scenario=Trajectory_step_over                                #small obstacle:
+	--[??f,?f,??f] = values(Scenario,obs_height, obs_length)
+	--Trajectory = minJerk(??i,?i,??i,??f,?f,??f,T)
+--elif  Scenario =  Trajectory_step_on:
+	--[??f,?f,??f] = values(Scenario,obs_height, obs_length)
+	--Trajectory = minJerk(??i,?i,??i,??f,?f,??f,T)
+--else: 
+--Trajectory = Stand                                                #obstacle too large
+--move(Trajectory)
+
+
+
+--Start of Movement.
+    ObstacleDetected,ObstacleDistance,DetectedPoint,ObstacleHandle,SurfaceNormVec=sim.handleProximitySensor(sim.handle_all)
+    
+    if ObstacleDetected==1 then
+        --print ('Obstacle Detected')
+        --Handle Obstacle Detection
+
+        --Get Obstacle Parameters: Height = max- min, Length = max-min
+        ----This will be a function in MATLAB. getObstacleParameters(ObstacleHandle)-->[ObstacleHeight,ObstacleLength]
+        a,zmax=sim.getObjectFloatParameter(ObstacleHandle,20)
+        a,zmin=sim.getObjectFloatParameter(ObstacleHandle,17)
+        a,xmax=sim.getObjectFloatParameter(ObstacleHandle,18)
+        a,xmin=sim.getObjectFloatParameter(ObstacleHandle,15)
+        ObstacleHeight=zmax-zmin
+        ObstacleLength=xmax-xmin
+
+        --Determine if the type of obstacle encountered and determine trajectory type. 
+        ----This will be a function in MATLAB. getTrajectoryType(ObstacleHeight,ObstacleLength) --> 'TrajectoryType' Ex.:('WalkOver','StepOn','Stand')
+        if (.5*footLength+ObstacleDistance+ObstacleLength+ObstacleHeight) < maxStrideLength then
+            TrajectoryType = 'WalkOver'
+        elseif ObstacleHeight<(legLength/2) then
+            TrajectoryType = 'StepOver'
+        else
+            TrajectoryType = 'Stand'
+        print (TrajectoryType)
+        --Create Trajectory according to TrajectoryType
+        ----This will be a function in MATLAB. Trajectory=createTrajectory(TrajectoryType) --> Position array for one timestep.
+        --if TrajectoryType = 'WalkOver' then
+
+        --elseif TrajectoryType = 'StepOn' then
+
+        --else
+
+        end
+    else
+        -- Insert Original Code from VRep here
+        angle = -4*simTime 
+        rad = angle*3.1415926/180
+        if angle > (-90) then
+            sim.setJointPosition(legJointHandles[1],rad)
+        end
+    end
+
+---------------------------------
+--------------------------------------------------------------------------------------------------------------
+    
+end 
