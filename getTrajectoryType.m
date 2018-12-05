@@ -1,7 +1,4 @@
-function TrajectoryType = getTrajectoryType(ObstacleParameters,ObstacleDistance,footLength,legLength,maxStrideLength)
-
-ObstacleHeigth = ObstacleParameters[1];
-ObstacleLength = ObstacleParameters[2];
+function TrajectoryType = getTrajectoryType(ObstacleHeight,ObstacleLength,ObstacleDistance,footLength,legLength,maxStrideLength)
 
 if .5*footLength+ObstacleDistance+ObstacleLength+ObstacleHeight < maxStrideLength:
     TrajectoryType = 'WalkOver';
